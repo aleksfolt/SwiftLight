@@ -1,10 +1,4 @@
-//
-//  Main.swift
-//  SwiftLight
-//
-//  Created by Folt on 31/5/25.
-//
-
+// Created by Folt
 import Foundation
 import Network
 
@@ -188,6 +182,104 @@ final class Bulb: @unchecked Sendable {
         let brightness = min(max(value, 1), 100)
         sendCommand(method: "set_bright", params: [brightness, "smooth", 300], completion: completion)
     }
+
+    static func discover(ip: String, timeout: TimeInterval = 3.0) -> Bulb? {
+        print("🔎 Discovering Yeelight at IP: \(ip)...")
+
+        guard let caps = ssdpDiscover(ipFilter: ip, timeout: timeout) else {
+            print("💤 No response from \(ip)")
+            return nil
+        }
+
+        print("✅ Found bulb at \(ip):")
+        for (k, v) in caps {
+            print("\(k): \(v)")
+        }
+
+        return Bulb(ip: ip)
+    }
+
+    private static func ssdpDiscover(ipFilter: String, timeout: TimeInterval) -> [String: String]? {
+        let message = """
+        M-SEARCH * HTTP/1.1\r
+        HOST: 239.255.255.250:1982\r
+        MAN: "ssdp:discover"\r
+        ST: wifi_bulb\r
+        \r
+        """
+
+        let socketFD = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        guard socketFD >= 0 else {
+            print("❌ Failed to create socket")
+            return nil
+        }
+
+        var enable: Int32 = 1
+        setsockopt(socketFD, SOL_SOCKET, SO_BROADCAST, &enable, socklen_t(MemoryLayout<Int32>.size))
+
+        var flags = fcntl(socketFD, F_GETFL)
+        fcntl(socketFD, F_SETFL, flags | O_NONBLOCK)
+
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = in_port_t(1982).bigEndian
+        addr.sin_addr.s_addr = inet_addr("239.255.255.250")
+
+        let data = [UInt8](message.utf8)
+        withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                sendto(socketFD, data, data.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+
+        print("📡 SSDP packet sent")
+
+        var buffer = [UInt8](repeating: 0, count: 2048)
+        var fromAddr = sockaddr_in()
+        var fromLen: socklen_t = socklen_t(MemoryLayout<sockaddr_in>.size)
+
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            let received = withUnsafeMutablePointer(to: &fromAddr) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    recvfrom(socketFD, &buffer, buffer.count, 0, $0, &fromLen)
+                }
+            }
+
+            if received > 0 {
+                let responseData = buffer.prefix(received)
+                if let response = String(bytes: responseData, encoding: .utf8) {
+                    if let locationLine = response.lowercased().components(separatedBy: "\r\n").first(where: { $0.hasPrefix("location:") }),
+                    locationLine.contains(ipFilter) {
+                        close(socketFD)
+                        return parseCapabilities(from: response)
+                    } else {
+                        print("⛔️ Skipping non-matching IP response")
+                    }
+                }
+            }
+
+            usleep(100_000)
+        }
+
+        print("🕒 Timeout waiting for \(ipFilter)")
+        close(socketFD)
+        return nil
+    }
+
+    private static func parseCapabilities(from response: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for line in response.components(separatedBy: "\r\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            if parts.count == 2 {
+                let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let value = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                result[key] = value
+            }
+        }
+        return result
+    }
 }
 
 @available(macOS 10.15, *)
@@ -224,30 +316,38 @@ extension Bulb {
         green: Int,
         blue: Int,
         lightType: LightType = .main,
+        ensureOn: Bool = true,
         completion: @Sendable @escaping (Result<[String: Any], Error>) -> Void
     ) {
-        turnOn(lightType: lightType) { [weak self] turnOnResult in
-            switch turnOnResult {
-            case .success:
-                let clampedR = min(max(red, 0), 255)
-                let clampedG = min(max(green, 0), 255)
-                let clampedB = min(max(blue, 0), 255)
-                let rgbValue = (clampedR << 16) | (clampedG << 8) | clampedB
+        let clampedR = min(max(red, 0), 255)
+        let clampedG = min(max(green, 0), 255)
+        let clampedB = min(max(blue, 0), 255)
+        let rgbValue = (clampedR << 16) | (clampedG << 8) | clampedB
 
-                self?.sendCommand(
-                    method: "set_rgb",
-                    params: [rgbValue, "smooth", 300, lightType.rawValue],
-                    completion: completion
-                )
-            case .failure(let error):
-                completion(.failure(error))
+        let send = {
+            self.sendCommand(
+                method: "set_rgb",
+                params: [rgbValue, "smooth", 300, lightType.rawValue],
+                completion: completion
+            )
+        }
+
+        if ensureOn {
+            turnOn(lightType: lightType) { result in
+                switch result {
+                case .success: send()
+                case .failure(let error): completion(.failure(error))
+                }
             }
+        } else {
+            send()
         }
     }
 }
 
 func demoUsage() {
-    let bulb = Bulb(ip: "192.168.0.25")
-    bulb.connect()
-    bulb.turnOff { _ in}
+    if let bulb = Bulb.discover(ip: "192.168.0.25") {
+        bulb.connect()
+        bulb.turnOn { _ in }
+    }
 }

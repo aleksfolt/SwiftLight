@@ -18,6 +18,11 @@ struct SmartLightControlView: View {
     @State private var isOn: Bool = false
     @State private var brightness: Double = 0.85
     @State private var selectedColor: Color = .white
+    @State private var selectedTempIndex: Int = 3
+
+    @State private var suppressColorUpdate = false
+    @State private var suppressBrightnessUpdate = false
+
     @State private var temperatures: [Color] = [
         Color(red: 1.0, green: 0.8, blue: 0.3),
         Color(red: 1.0, green: 0.9, blue: 0.5),
@@ -29,7 +34,6 @@ struct SmartLightControlView: View {
         Color(red: 0.2, green: 0.6, blue: 1.0),
         Color(red: 0.0, green: 0.5, blue: 1.0)
     ]
-    @State private var selectedTempIndex: Int = 3
 
     private let ctMin: Int = 1700
     private let ctMax: Int = 6500
@@ -123,6 +127,10 @@ struct SmartLightControlView: View {
             }
         }
         .onChange(of: selectedColor) { newColor in
+            if suppressColorUpdate {
+                suppressColorUpdate = false
+                return
+            }
             if isConnected, let bulb = bulb {
                 sendRGBColor(newColor, to: bulb)
             }
@@ -147,11 +155,54 @@ struct SmartLightControlView: View {
         }
         return device.ip
     }
-}
 
-@available(macOS 10.15, *)
-private extension SmartLightControlView {
-    var powerButton: some View {
+    private func connectToLamp() {
+        let trimmedIP = lampIP.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedIP.isEmpty else { return }
+
+        if let discovered = Bulb.discover(ip: trimmedIP) {
+            discovered.connect()
+            bulb = discovered
+            isConnected = true
+
+            discovered.sendCommand(method: "get_prop", params: deafaultProps) { result in
+                if case let .success(json) = result, let data = json["result"] as? [String] {
+                    if let power = data.first(where: { $0 == "on" || $0 == "off" }) {
+                        isOn = (power == "on")
+                    }
+                    if let brightIndex = deafaultProps.firstIndex(of: "bright"), data.indices.contains(brightIndex), let value = Int(data[brightIndex]) {
+                        suppressBrightnessUpdate = true
+                        brightness = Double(value) / 100.0
+                    }
+                    if let rgbIndex = deafaultProps.firstIndex(of: "rgb"), data.indices.contains(rgbIndex), let rgb = Int(data[rgbIndex]) {
+                        let r = Double((rgb >> 16) & 0xFF) / 255.0
+                        let g = Double((rgb >> 8) & 0xFF) / 255.0
+                        let b = Double(rgb & 0xFF) / 255.0
+                        suppressColorUpdate = true
+                        selectedColor = Color(red: r, green: g, blue: b)
+                    }
+                }
+            }
+        }
+    }
+
+    private func sendRGBColor(_ color: Color, to bulb: Bulb) {
+        #if os(macOS)
+        if let nsColor = NSColor(color).usingColorSpace(.deviceRGB) {
+            let r = Int(nsColor.redComponent * 255)
+            let g = Int(nsColor.greenComponent * 255)
+            let b = Int(nsColor.blueComponent * 255)
+            bulb.setRGB(red: r, green: g, blue: b, ensureOn: false) { _ in }
+        }
+        #else
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        let r = Int(red * 255), g = Int(green * 255), b = Int(blue * 255)
+        bulb.setRGB(red: r, green: g, blue: b, ensureOn: false) { _ in }
+        #endif
+    }
+
+    private var powerButton: some View {
         Button {
             guard let bulb = bulb else { return }
             withAnimation { isOn.toggle() }
@@ -175,7 +226,7 @@ private extension SmartLightControlView {
         .accessibilityLabel(isOn ? "Light Off" : "Light On")
     }
 
-    var brightnessSlider: some View {
+    private var brightnessSlider: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Brightness")
@@ -190,6 +241,10 @@ private extension SmartLightControlView {
                 value: $brightness,
                 in: 0...1,
                 onEditingChanged: { editing in
+                    if suppressBrightnessUpdate {
+                        suppressBrightnessUpdate = false
+                        return
+                    }
                     if !editing, isConnected, let bulb = bulb {
                         let intValue = Int(brightness * 100)
                         bulb.setBrightness(intValue) { _ in }
@@ -201,7 +256,7 @@ private extension SmartLightControlView {
         .padding(.vertical, 4)
     }
 
-    var colorPickerView: some View {
+    private var colorPickerView: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Color (RGB)")
                 .font(.headline)
@@ -212,7 +267,7 @@ private extension SmartLightControlView {
         }
     }
 
-    var temperatureGrid: some View {
+    private var temperatureGrid: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Color temperature")
                 .font(.headline)
@@ -240,34 +295,6 @@ private extension SmartLightControlView {
                 }
             }
         }
-    }
-
-    func connectToLamp() {
-        let trimmedIP = lampIP.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedIP.isEmpty else { return }
-
-        let newBulb = Bulb(ip: trimmedIP)
-        newBulb.connect()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            bulb = newBulb
-            isConnected = true
-        }
-    }
-
-    func sendRGBColor(_ color: Color, to bulb: Bulb) {
-        #if os(macOS)
-        if let nsColor = NSColor(color).usingColorSpace(.deviceRGB) {
-            let r = Int(nsColor.redComponent * 255)
-            let g = Int(nsColor.greenComponent * 255)
-            let b = Int(nsColor.blueComponent * 255)
-            bulb.setRGB(red: r, green: g, blue: b, lightType: .main) { _ in }
-        }
-        #else
-        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        let r = Int(red * 255), g = Int(green * 255), b = Int(blue * 255)
-        bulb.setRGB(red: r, green: g, blue: b, lightType: .main) { _ in }
-        #endif
     }
 }
 

@@ -24,9 +24,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		617DF1CB2DEAE94B009C26A8 /* SwiftLight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = SwiftLight.app; path = /Users/folt/Documents/xcodee/SwiftLight/build/Debug/SwiftLight.app; sourceTree = "<absolute>"; };
 		617DF1D92DEAE94C009C26A8 /* SwiftLightTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = SwiftLightTests.xctest; path = /Users/folt/Documents/xcodee/SwiftLight/build/Debug/SwiftLight.app/Contents/PlugIns/SwiftLightTests.xctest; sourceTree = "<absolute>"; };
 		617DF1E32DEAE94C009C26A8 /* SwiftLightUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = SwiftLightUITests.xctest; path = "/Users/folt/Documents/xcodee/SwiftLight/build/Debug/SwiftLightUITests-Runner.app/Contents/PlugIns/SwiftLightUITests.xctest"; sourceTree = "<absolute>"; };
+		61BB9DD72DEB613000354291 /* SwiftLight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftLight.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -72,6 +72,7 @@
 			children = (
 				617DF1CD2DEAE94B009C26A8 /* SwiftLight */,
 				617DF1F82DEAE961009C26A8 /* Utils */,
+				61BB9DD72DEB613000354291 /* SwiftLight.app */,
 			);
 			sourceTree = "<group>";
 		};
@@ -98,7 +99,7 @@
 			packageProductDependencies = (
 			);
 			productName = SwiftLight;
-			productReference = 617DF1CB2DEAE94B009C26A8 /* SwiftLight.app */;
+			productReference = 61BB9DD72DEB613000354291 /* SwiftLight.app */;
 			productType = "com.apple.product-type.application";
 		};
 		617DF1D82DEAE94C009C26A8 /* SwiftLightTests */ = {
@@ -385,6 +386,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.folt.SwiftLight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -412,6 +414,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.folt.SwiftLight;
 				PRODUCT_NAME = "$(TARGET_NAME)";
