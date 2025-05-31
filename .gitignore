@@ -1,0 +1,57 @@
+# Xcode
+#
+# Игнорировать временные файлы и каталоги, создаваемые Xcode
+#
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Сертификаты и ключи (если вдруг попадут в проект)
+*.cer
+*.key
+*.mobileprovision
+
+# Swift Package Manager
+#
+# Сгенерированные зависимости и каталоги
+#
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# CocoaPods (если будет использоваться)
+#
+Pods/
+Podfile.lock
+
+# Carthage (если будет использоваться)
+#
+Carthage/Build/
+
+# Сгенерированные файлы, кэш, временные файлы
+#
+*.moved-aside
+*.xcuserstate
+*.xcworkspace
+*.hmap
+*.ipa
+*.xcfilelist
+*.docset
+*.dSYM.zip
+*.dSYM
+
+# SwiftPM Xcode project
+#
+# Игнорировать файл, который Xcode генерирует при открытии Swift-пакета в виде проекта
+.xcodeproj/xcshareddata/swiftpm/
