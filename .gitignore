@@ -55,3 +55,4 @@ Carthage/Build/
 #
 # Игнорировать файл, который Xcode генерирует при открытии Swift-пакета в виде проекта
 .xcodeproj/xcshareddata/swiftpm/
+.DS_Store
